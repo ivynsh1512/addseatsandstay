@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /businesses/{businessId} {
+      // Allow public read access only for approved and visible businesses.
+      allow read: if resource.data.status == 'approved' && resource.data.visibility == true;
+      
+      // Any authenticated user can create a business. App logic sets defaults.
+      allow create: if isSignedIn();
+      
+      // Allow updates only by the owner or an admin (checked at app level).
+      // This permissive rule relies on app logic to show update controls correctly.
+      allow update: if isSignedIn();
+
+      // Only the owner can delete their own business.
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+    }
+    
+    // Allow admin to read all businesses for the dashboard
+    match /businesses/{businessId} {
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /categories/{id} {
+      allow read: if true;
+    }
+
+    match /users/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
+  }
+}
